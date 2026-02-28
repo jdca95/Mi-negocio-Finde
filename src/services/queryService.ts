@@ -3,6 +3,7 @@ import { formatDateTime } from '../utils/date'
 
 export interface RecentSaleView {
   id: string
+  folio?: string
   createdAt: string
   createdLabel: string
   total: number
@@ -25,6 +26,7 @@ export interface MovementView {
 
 export interface TransferHistoryView {
   id: string
+  folio?: string
   createdAt: string
   createdLabel: string
   fromLocationName: string
@@ -43,6 +45,7 @@ export const getRecentSales = async (
     .slice(0, limit)
     .map((sale) => ({
       id: sale.id,
+      folio: sale.folio,
       createdAt: sale.createdAt,
       createdLabel: formatDateTime(sale.createdAt),
       total: sale.total,
@@ -101,6 +104,7 @@ export const getTransferHistory = async (
 
   return transfers.map((transfer) => ({
     id: transfer.id,
+    folio: transfer.folio,
     createdAt: transfer.createdAt,
     createdLabel: formatDateTime(transfer.createdAt),
     fromLocationName:
@@ -110,4 +114,3 @@ export const getTransferHistory = async (
     itemsCount: itemCountMap.get(transfer.id) ?? 0,
   }))
 }
-

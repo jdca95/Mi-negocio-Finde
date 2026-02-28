@@ -395,6 +395,27 @@ textarea {
   resize: vertical;
 }
 
+.file-upload {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid #1b4332;
+  border-radius: 10px;
+  background: #f7f7f2;
+  color: #1b4332;
+  cursor: pointer;
+}
+
+.file-upload input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
 @media (max-width: 768px) {
   .app-shell {
     padding: 0.7rem;
@@ -419,4 +440,3 @@ textarea {
     min-width: 620px;
   }
 }
-

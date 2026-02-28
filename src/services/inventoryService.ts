@@ -1,5 +1,6 @@
 import { db, buildBalanceId, buildEntityId } from '../db'
 import { nowIso } from '../utils/date'
+import { getRuntimeMeta } from '../utils/runtime'
 import { buildSyncQueueItem } from './syncQueueService'
 import type {
   AdjustmentMode,
@@ -141,6 +142,7 @@ export const createProduct = async (input: CreateProductInput): Promise<Product>
   const name = sanitizeString(input.name)
   const sku = normalizeSku(input.sku)
   const now = nowIso()
+  const runtimeMeta = getRuntimeMeta()
 
   if (!name) {
     throw new Error('Nombre de producto obligatorio.')
@@ -196,10 +198,14 @@ export const createProduct = async (input: CreateProductInput): Promise<Product>
           locationId: input.locationId,
           type: 'ADJUST_IN',
           qty: input.initialStock,
+          beforeStock: 0,
+          afterStock: input.initialStock,
           reason: 'Inventario inicial',
           refType: 'ADJUSTMENT',
           refId: product.id,
           performedBy: input.performedBy,
+          deviceId: runtimeMeta.deviceId,
+          sessionId: runtimeMeta.sessionId,
           createdAt: now,
           updatedAt: now,
         })
@@ -268,6 +274,7 @@ export const setProductActive = async (
 
 export const adjustStock = async (input: AdjustStockInput): Promise<void> => {
   const now = nowIso()
+  const runtimeMeta = getRuntimeMeta()
 
   if (input.quantity < 0) {
     throw new Error('Cantidad invalida.')
@@ -316,10 +323,14 @@ export const adjustStock = async (input: AdjustStockInput): Promise<void> => {
         locationId: input.locationId,
         type: movementType,
         qty: movementQty,
+        beforeStock: previousStock,
+        afterStock: newStock,
         reason: `${input.reason}${input.notes ? ` - ${input.notes}` : ''}`,
         refType: 'ADJUSTMENT',
         refId: movementId,
         performedBy: input.performedBy,
+        deviceId: runtimeMeta.deviceId,
+        sessionId: runtimeMeta.sessionId,
         createdAt: now,
         updatedAt: now,
       })

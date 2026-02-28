@@ -1,5 +1,6 @@
 import { db, buildBalanceId, buildEntityId } from '../db'
 import { nowIso } from '../utils/date'
+import { buildFolio, getRuntimeMeta } from '../utils/runtime'
 import { buildSyncQueueItem } from './syncQueueService'
 import type {
   PaymentMethod,
@@ -34,6 +35,12 @@ export const createSale = async (input: CreateSaleInput): Promise<Sale> => {
   }
 
   const now = nowIso()
+  const runtimeMeta = getRuntimeMeta()
+  const location = await db.locations.get(input.locationId)
+  if (!location) {
+    throw new Error('Sucursal no encontrada.')
+  }
+
   const saleId = buildEntityId('sale')
   const dedupMap = new Map<string, number>()
   for (const item of input.items) {
@@ -51,11 +58,15 @@ export const createSale = async (input: CreateSaleInput): Promise<Sale> => {
 
   const sale: Sale = {
     id: saleId,
+    folio: buildFolio('VTA', location.code, now),
     locationId: input.locationId,
     paymentMethod: input.paymentMethod,
     total: 0,
     estimatedProfit: 0,
     status: 'COMPLETED',
+    performedBy: input.performedBy,
+    deviceId: runtimeMeta.deviceId,
+    sessionId: runtimeMeta.sessionId,
     createdAt: now,
     updatedAt: now,
   }
@@ -137,10 +148,14 @@ export const createSale = async (input: CreateSaleInput): Promise<Sale> => {
           locationId: input.locationId,
           type: 'SALE_OUT',
           qty: item.qty,
+          beforeStock: currentStock,
+          afterStock: nextStock,
           reason: `Venta ${sale.id}`,
           refType: 'SALE',
           refId: sale.id,
           performedBy: input.performedBy,
+          deviceId: runtimeMeta.deviceId,
+          sessionId: runtimeMeta.sessionId,
           createdAt: now,
           updatedAt: now,
         })
@@ -159,6 +174,7 @@ export const cancelSale = async (input: CancelSaleInput): Promise<void> => {
   }
 
   const now = nowIso()
+  const runtimeMeta = getRuntimeMeta()
 
   await db.transaction(
     'rw',
@@ -202,10 +218,14 @@ export const cancelSale = async (input: CancelSaleInput): Promise<void> => {
           locationId: sale.locationId,
           type: 'SALE_CANCEL_IN',
           qty: item.qty,
+          beforeStock: currentStock,
+          afterStock: nextStock,
           reason: `Cancelacion ${reason}`,
           refType: 'SALE',
           refId: sale.id,
           performedBy: input.performedBy,
+          deviceId: runtimeMeta.deviceId,
+          sessionId: runtimeMeta.sessionId,
           createdAt: now,
           updatedAt: now,
         })

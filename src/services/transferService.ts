@@ -1,5 +1,6 @@
 import { db, buildBalanceId, buildEntityId } from '../db'
 import { nowIso } from '../utils/date'
+import { buildFolio, getRuntimeMeta } from '../utils/runtime'
 import { buildSyncQueueItem } from './syncQueueService'
 import type { SaleItemInput, Transfer, TransferItem } from '../types'
 
@@ -36,13 +37,25 @@ export const createTransfer = async (
   }))
 
   const now = nowIso()
+  const runtimeMeta = getRuntimeMeta()
+  const [fromLocation, toLocation] = await Promise.all([
+    db.locations.get(input.fromLocationId),
+    db.locations.get(input.toLocationId),
+  ])
+  if (!fromLocation || !toLocation) {
+    throw new Error('Origen o destino no encontrado.')
+  }
+
   const transfer: Transfer = {
     id: buildEntityId('tran'),
+    folio: buildFolio(`TRF-${toLocation.code}`, fromLocation.code, now),
     fromLocationId: input.fromLocationId,
     toLocationId: input.toLocationId,
     status: 'COMPLETED',
     notes: input.notes.trim(),
     performedBy: input.performedBy,
+    deviceId: runtimeMeta.deviceId,
+    sessionId: runtimeMeta.sessionId,
     createdAt: now,
     updatedAt: now,
   }
@@ -118,10 +131,14 @@ export const createTransfer = async (
           locationId: input.fromLocationId,
           type: 'TRANSFER_OUT',
           qty: item.qty,
+          beforeStock: fromStock,
+          afterStock: fromStock - item.qty,
           reason: `Transferencia ${transfer.id}`,
           refType: 'TRANSFER',
           refId: transfer.id,
           performedBy: input.performedBy,
+          deviceId: runtimeMeta.deviceId,
+          sessionId: runtimeMeta.sessionId,
           createdAt: now,
           updatedAt: now,
         })
@@ -134,10 +151,14 @@ export const createTransfer = async (
           locationId: input.toLocationId,
           type: 'TRANSFER_IN',
           qty: item.qty,
+          beforeStock: toStock,
+          afterStock: toStock + item.qty,
           reason: `Transferencia ${transfer.id}`,
           refType: 'TRANSFER',
           refId: transfer.id,
           performedBy: input.performedBy,
+          deviceId: runtimeMeta.deviceId,
+          sessionId: runtimeMeta.sessionId,
           createdAt: now,
           updatedAt: now,
         })

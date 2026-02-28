@@ -292,7 +292,7 @@ export const TransfersModule = ({
             <tbody>
               {transferHistory.map((transfer) => (
                 <tr key={transfer.id}>
-                  <td>{transfer.id.slice(0, 8)}</td>
+                  <td>{transfer.folio ?? transfer.id.slice(0, 8)}</td>
                   <td>{transfer.createdLabel}</td>
                   <td>{transfer.fromLocationName}</td>
                   <td>{transfer.toLocationName}</td>

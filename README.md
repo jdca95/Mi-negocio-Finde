@@ -46,6 +46,9 @@ PWA offline-first para inventario y ventas de fin de semana con 3 sucursales y a
   - Auto-sync al reconectar internet
   - Last-write-wins con `updatedAt`
   - Cola local de pendientes (`syncQueue`)
+- Respaldo completo:
+  - Exportacion JSON completa de la base local
+  - Restauracion desde archivo de respaldo
 
 ## Credenciales iniciales (demo local)
 
@@ -126,3 +129,4 @@ Despues de la primera carga, los assets quedan cacheados y la app sigue operando
 - Todas las operaciones criticas de inventario/ventas/transferencias usan transacciones Dexie.
 - La utilidad historica no se recalcula con costos nuevos porque se guarda snapshot en cada item vendido.
 - Las sucursales y Casa comparten catalogo de productos, pero el stock se maneja por `locationId`.
+- `xlsx`, Firebase y modulos pesados se cargan bajo demanda para reducir el bundle inicial.

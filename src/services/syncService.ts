@@ -1,14 +1,5 @@
-import { initializeApp, getApps, type FirebaseApp } from 'firebase/app'
-import {
-  collection,
-  doc,
-  getDocs,
-  getFirestore,
-  query,
-  setDoc,
-  where,
-} from 'firebase/firestore'
 import type { Table } from 'dexie'
+import type { FirebaseApp } from 'firebase/app'
 import { db } from '../db'
 import type { SyncEntityType, SyncRunResult } from '../types'
 import { nowIso } from '../utils/date'
@@ -21,6 +12,10 @@ const REQUIRED_KEYS = [
 ] as const
 
 let firebaseApp: FirebaseApp | null = null
+let firebaseModulesPromise: Promise<{
+  app: typeof import('firebase/app')
+  firestore: typeof import('firebase/firestore')
+}> | null = null
 
 type SyncRecord = {
   id: string
@@ -28,11 +23,23 @@ type SyncRecord = {
   [key: string]: unknown
 }
 
-const getFirestoreInstance = () => {
+const getFirebaseModules = async () => {
+  if (!firebaseModulesPromise) {
+    firebaseModulesPromise = Promise.all([
+      import('firebase/app'),
+      import('firebase/firestore'),
+    ]).then(([app, firestore]) => ({ app, firestore }))
+  }
+
+  return firebaseModulesPromise
+}
+
+const getFirestoreInstance = async () => {
+  const firebase = await getFirebaseModules()
   if (!firebaseApp) {
     firebaseApp =
-      getApps()[0] ??
-      initializeApp({
+      firebase.app.getApps()[0] ??
+      firebase.app.initializeApp({
         apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
         authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
         projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
@@ -40,7 +47,10 @@ const getFirestoreInstance = () => {
         messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
       })
   }
-  return getFirestore(firebaseApp)
+  return {
+    db: firebase.firestore.getFirestore(firebaseApp),
+    firestore: firebase.firestore,
+  }
 }
 
 const getEntityTable = (entityType: SyncEntityType): Table<SyncRecord, string> => {
@@ -94,14 +104,13 @@ export const syncNow = async (): Promise<SyncRunResult> => {
     }
   }
 
-  const firestore = getFirestoreInstance()
-  const syncStartedAt = nowIso()
-
   let pushed = 0
   let pulled = 0
   let failed = 0
 
   try {
+    const { db: firestoreDb, firestore } = await getFirestoreInstance()
+    const syncStartedAt = nowIso()
     const lastSyncAtSetting = await db.settings.get('lastSyncAt')
     const lastSyncAt = lastSyncAtSetting?.value ?? '1970-01-01T00:00:00.000Z'
 
@@ -116,8 +125,8 @@ export const syncNow = async (): Promise<SyncRunResult> => {
       }
 
       try {
-        await setDoc(
-          doc(firestore, queueItem.entityType, queueItem.entityId),
+        await firestore.setDoc(
+          firestore.doc(firestoreDb, queueItem.entityType, queueItem.entityId),
           record as Record<string, unknown>,
           { merge: true },
         )
@@ -136,8 +145,11 @@ export const syncNow = async (): Promise<SyncRunResult> => {
     }
 
     for (const entityType of ENTITY_TYPES) {
-      const snapshot = await getDocs(
-        query(collection(firestore, entityType), where('updatedAt', '>', lastSyncAt)),
+      const snapshot = await firestore.getDocs(
+        firestore.query(
+          firestore.collection(firestoreDb, entityType),
+          firestore.where('updatedAt', '>', lastSyncAt),
+        ),
       )
 
       const table = getEntityTable(entityType)

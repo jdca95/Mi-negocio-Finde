@@ -1,5 +1,6 @@
 import { db, buildBalanceId, buildEntityId } from '../db'
 import { nowIso } from '../utils/date'
+import { getRuntimeMeta } from '../utils/runtime'
 import { buildSyncQueueItem } from './syncQueueService'
 import type { CsvProductRow, CsvValidationResult, Product } from '../types'
 
@@ -158,6 +159,7 @@ export const importProductsFromCsv = async (
   }
 
   const now = nowIso()
+  const runtimeMeta = getRuntimeMeta()
   let created = 0
   let updated = 0
 
@@ -243,6 +245,7 @@ export const importProductsFromCsv = async (
         }
 
         const balanceId = buildBalanceId(targetLocationId, targetProduct.id)
+        const existingBalance = await db.inventoryBalances.get(balanceId)
         await db.inventoryBalances.put({
           id: balanceId,
           locationId: targetLocationId,
@@ -259,10 +262,14 @@ export const importProductsFromCsv = async (
           locationId: targetLocationId,
           type: 'ADJUST_SET',
           qty: row.stock,
+          beforeStock: existingBalance?.stock ?? 0,
+          afterStock: row.stock,
           reason: 'Importacion CSV',
           refType: 'ADJUSTMENT',
           refId: movementId,
           performedBy: input.performedBy,
+          deviceId: runtimeMeta.deviceId,
+          sessionId: runtimeMeta.sessionId,
           createdAt: now,
           updatedAt: now,
         })

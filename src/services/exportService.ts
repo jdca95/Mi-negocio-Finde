@@ -1,4 +1,3 @@
-import * as XLSX from 'xlsx'
 import { PAYMENT_METHOD_LABELS } from '../constants'
 import { getDailyCut } from './reportService'
 
@@ -10,6 +9,7 @@ export const exportDailyExcel = async (
   locationId: string,
 ): Promise<void> => {
   const summary = await getDailyCut(dateInput, locationId)
+  const XLSX = await import('xlsx')
   const workbook = XLSX.utils.book_new()
 
   const resumenRows = [
@@ -74,4 +74,3 @@ export const exportDailyExcel = async (
     `MiNegocioFinde_${locationSafe}_${summary.date.replaceAll('-', '')}.xlsx`,
   )
 }
-

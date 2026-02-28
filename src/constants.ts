@@ -14,7 +14,11 @@ export const APP_NAME = 'MiNegocioFinde'
 export const STORAGE_KEYS = {
   activeLocationId: 'mnf.activeLocationId',
   sessionUserId: 'mnf.sessionUserId',
+  deviceId: 'mnf.deviceId',
+  runtimeSessionId: 'mnf.runtimeSessionId',
 } as const
+
+export const BACKUP_SCHEMA_VERSION = 1
 
 export const DEFAULT_LOCATIONS: Array<Omit<Location, 'createdAt' | 'updatedAt'>> = [
   {

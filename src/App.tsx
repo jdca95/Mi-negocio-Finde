@@ -1,21 +1,40 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { DEFAULT_LOCATION_ID, ROLE_LABELS, STORAGE_KEYS } from './constants'
 import { db, ensureSeedData } from './db'
 import { useOnlineStatus } from './hooks/useOnlineStatus'
 import { clearSession, getSessionUser, login } from './services/authService'
 import { isFirebaseConfigured, syncNow } from './services/syncService'
+import {
+  ensureDeviceId,
+  ensureRuntimeSessionId,
+  resetRuntimeSessionId,
+} from './utils/runtime'
 import type { Location, Role, User } from './types'
-import { AdjustmentsModule } from './components/AdjustmentsModule'
-import { DailyCutModule } from './components/DailyCutModule'
-import { ImportModule } from './components/ImportModule'
 import { InventoryModule } from './components/InventoryModule'
 import { LoginForm } from './components/LoginForm'
 import { OnlineBadge } from './components/OnlineBadge'
-import { ReportsModule } from './components/ReportsModule'
 import { SalesModule } from './components/SalesModule'
 import { SyncPanel } from './components/SyncPanel'
-import { TransfersModule } from './components/TransfersModule'
+
+const DailyCutModule = lazy(async () => ({
+  default: (await import('./components/DailyCutModule')).DailyCutModule,
+}))
+const ReportsModule = lazy(async () => ({
+  default: (await import('./components/ReportsModule')).ReportsModule,
+}))
+const AdjustmentsModule = lazy(async () => ({
+  default: (await import('./components/AdjustmentsModule')).AdjustmentsModule,
+}))
+const TransfersModule = lazy(async () => ({
+  default: (await import('./components/TransfersModule')).TransfersModule,
+}))
+const ImportModule = lazy(async () => ({
+  default: (await import('./components/ImportModule')).ImportModule,
+}))
+const BackupModule = lazy(async () => ({
+  default: (await import('./components/BackupModule')).BackupModule,
+}))
 
 type TabKey =
   | 'inventory'
@@ -25,6 +44,7 @@ type TabKey =
   | 'adjustments'
   | 'transfers'
   | 'import'
+  | 'backup'
   | 'pwa'
 
 interface TabItem {
@@ -41,6 +61,7 @@ const TABS: TabItem[] = [
   { id: 'adjustments', label: 'Ajustes', roles: ['ADMIN', 'CASHIER'] },
   { id: 'transfers', label: 'Transferencias', roles: ['ADMIN', 'CASHIER'] },
   { id: 'import', label: 'Importar CSV', roles: ['ADMIN'] },
+  { id: 'backup', label: 'Respaldo', roles: ['ADMIN', 'CASHIER'] },
   { id: 'pwa', label: 'Instalar iPhone', roles: ['ADMIN', 'CASHIER'] },
 ]
 
@@ -56,7 +77,7 @@ function App() {
   const [errorMessage, setErrorMessage] = useState('')
   const [isSyncing, setIsSyncing] = useState(false)
   const syncInProgressRef = useRef(false)
-  const autoSyncDoneRef = useRef(false)
+  const lastAutoSyncPendingRef = useRef(0)
 
   const isOnline = useOnlineStatus()
   const firebaseConfigured = isFirebaseConfigured()
@@ -136,6 +157,8 @@ function App() {
   useEffect(() => {
     let alive = true
     const init = async () => {
+      ensureDeviceId()
+      ensureRuntimeSessionId()
       await ensureSeedData()
       const user = await getSessionUser()
       const storedLocation =
@@ -188,12 +211,19 @@ function App() {
     }
 
     const onOnline = () => {
+      lastAutoSyncPendingRef.current = 0
       void runSync(true)
     }
 
     window.addEventListener('online', onOnline)
-    if (isOnline && pendingSyncCount > 0 && !autoSyncDoneRef.current) {
-      autoSyncDoneRef.current = true
+    if (pendingSyncCount === 0) {
+      lastAutoSyncPendingRef.current = 0
+    } else if (
+      isOnline &&
+      pendingSyncCount > 0 &&
+      pendingSyncCount !== lastAutoSyncPendingRef.current
+    ) {
+      lastAutoSyncPendingRef.current = pendingSyncCount
       void runSync(true)
     }
 
@@ -222,6 +252,7 @@ function App() {
               return
             }
             setLoginError('')
+            resetRuntimeSessionId()
             setCurrentUser(result.user)
             setInfoMessage(`Bienvenido ${result.user.name}.`)
           }}
@@ -261,6 +292,7 @@ function App() {
             className="secondary"
             onClick={() => {
               clearSession()
+              resetRuntimeSessionId()
               setCurrentUser(null)
             }}
           >
@@ -315,46 +347,66 @@ function App() {
         ) : null}
 
         {activeTab === 'dailyCut' ? (
-          <DailyCutModule
-            locationId={activeLocationId}
-            onNotify={notify}
-            onError={notifyError}
-          />
+          <Suspense fallback={<p>Cargando modulo...</p>}>
+            <DailyCutModule
+              locationId={activeLocationId}
+              onNotify={notify}
+              onError={notifyError}
+            />
+          </Suspense>
         ) : null}
 
         {activeTab === 'reports' ? (
-          <ReportsModule activeLocationId={activeLocationId} />
+          <Suspense fallback={<p>Cargando modulo...</p>}>
+            <ReportsModule activeLocationId={activeLocationId} />
+          </Suspense>
         ) : null}
 
         {activeTab === 'adjustments' ? (
-          <AdjustmentsModule
-            locationId={activeLocationId}
-            canAdjust={currentUser.role === 'ADMIN'}
-            performedBy={currentUser.id}
-            onNotify={notify}
-            onError={notifyError}
-          />
+          <Suspense fallback={<p>Cargando modulo...</p>}>
+            <AdjustmentsModule
+              locationId={activeLocationId}
+              canAdjust={currentUser.role === 'ADMIN'}
+              performedBy={currentUser.id}
+              onNotify={notify}
+              onError={notifyError}
+            />
+          </Suspense>
         ) : null}
 
         {activeTab === 'transfers' ? (
-          <TransfersModule
-            locations={locations}
-            canTransfer={currentUser.role === 'ADMIN'}
-            performedBy={currentUser.id}
-            onNotify={notify}
-            onError={notifyError}
-          />
+          <Suspense fallback={<p>Cargando modulo...</p>}>
+            <TransfersModule
+              locations={locations}
+              canTransfer={currentUser.role === 'ADMIN'}
+              performedBy={currentUser.id}
+              onNotify={notify}
+              onError={notifyError}
+            />
+          </Suspense>
         ) : null}
 
         {activeTab === 'import' ? (
-          <ImportModule
-            defaultLocationId={activeLocationId}
-            locations={locations}
-            canImport={currentUser.role === 'ADMIN'}
-            performedBy={currentUser.id}
-            onNotify={notify}
-            onError={notifyError}
-          />
+          <Suspense fallback={<p>Cargando modulo...</p>}>
+            <ImportModule
+              defaultLocationId={activeLocationId}
+              locations={locations}
+              canImport={currentUser.role === 'ADMIN'}
+              performedBy={currentUser.id}
+              onNotify={notify}
+              onError={notifyError}
+            />
+          </Suspense>
+        ) : null}
+
+        {activeTab === 'backup' ? (
+          <Suspense fallback={<p>Cargando modulo...</p>}>
+            <BackupModule
+              canManage={currentUser.role === 'ADMIN'}
+              onNotify={notify}
+              onError={notifyError}
+            />
+          </Suspense>
         ) : null}
 
         {activeTab === 'pwa' ? (

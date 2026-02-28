@@ -257,7 +257,7 @@ export const SalesModule = ({
             <tbody>
               {recentSales.map((sale) => (
                 <tr key={sale.id}>
-                  <td>{sale.id.slice(0, 8)}</td>
+                  <td>{sale.folio ?? sale.id.slice(0, 8)}</td>
                   <td>{sale.createdLabel}</td>
                   <td>{PAYMENT_METHOD_LABELS[sale.paymentMethod]}</td>
                   <td>{formatCurrency(sale.total)}</td>

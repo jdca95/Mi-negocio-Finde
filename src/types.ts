@@ -70,11 +70,15 @@ export interface InventoryBalance {
 
 export interface Sale {
   id: string
+  folio?: string
   locationId: string
   paymentMethod: PaymentMethod
   total: number
   estimatedProfit: number
   status: SaleStatus
+  performedBy?: string
+  deviceId?: string
+  sessionId?: string
   createdAt: string
   updatedAt: string
   canceledAt?: string
@@ -104,11 +108,14 @@ export interface SaleCancellation {
 
 export interface Transfer {
   id: string
+  folio?: string
   fromLocationId: string
   toLocationId: string
   status: TransferStatus
   notes: string
   performedBy: string
+  deviceId?: string
+  sessionId?: string
   createdAt: string
   updatedAt: string
 }
@@ -128,10 +135,14 @@ export interface StockMovement {
   locationId: string
   type: MovementType
   qty: number
+  beforeStock?: number
+  afterStock?: number
   reason: string
   refType: 'SALE' | 'TRANSFER' | 'ADJUSTMENT'
   refId: string
   performedBy: string
+  deviceId?: string
+  sessionId?: string
   createdAt: string
   updatedAt: string
 }
@@ -269,4 +280,26 @@ export interface SyncRunResult {
   pulled: number
   failed: number
   message: string
+}
+
+export interface BackupPayload {
+  metadata: {
+    appName: string
+    schemaVersion: number
+    exportedAt: string
+  }
+  data: {
+    locations: Location[]
+    products: Product[]
+    inventoryBalances: InventoryBalance[]
+    sales: Sale[]
+    saleItems: SaleItem[]
+    saleCancellations: SaleCancellation[]
+    transfers: Transfer[]
+    transferItems: TransferItem[]
+    stockMovements: StockMovement[]
+    users: User[]
+    settings: Setting[]
+    syncQueue: SyncQueueItem[]
+  }
 }

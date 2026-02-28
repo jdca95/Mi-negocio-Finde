@@ -73,4 +73,25 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('chart.js') || id.includes('react-chartjs-2')) {
+            return 'charts'
+          }
+          if (id.includes('xlsx')) {
+            return 'excel'
+          }
+          if (id.includes('firebase')) {
+            return 'firebase'
+          }
+          if (id.includes('dexie')) {
+            return 'dexie'
+          }
+          return undefined
+        },
+      },
+    },
+  },
 })
