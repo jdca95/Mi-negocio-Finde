@@ -1,5 +1,6 @@
 interface SyncPanelProps {
   isConfigured: boolean
+  realtimeActive: boolean
   pendingCount: number
   lastSyncAt: string
   syncing: boolean
@@ -8,6 +9,7 @@ interface SyncPanelProps {
 
 export const SyncPanel = ({
   isConfigured,
+  realtimeActive,
   pendingCount,
   lastSyncAt,
   syncing,
@@ -16,7 +18,11 @@ export const SyncPanel = ({
   <div className="sync-panel">
     <div>
       <strong>Sync:</strong>{' '}
-      {isConfigured ? 'Firebase configurado' : 'Local-only (sin Firebase)'}
+      {isConfigured
+        ? realtimeActive
+          ? 'Firebase conectado (tiempo real)'
+          : 'Firebase configurado'
+        : 'Local-only (sin Firebase)'}
       <small>
         Pendientes: {pendingCount} | Ultimo sync:{' '}
         {lastSyncAt ? new Date(lastSyncAt).toLocaleString('es-MX') : 'Nunca'}
@@ -27,4 +33,3 @@ export const SyncPanel = ({
     </button>
   </div>
 )
-

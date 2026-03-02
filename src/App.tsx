@@ -4,7 +4,12 @@ import { DEFAULT_LOCATION_ID, ROLE_LABELS, STORAGE_KEYS } from './constants'
 import { db, ensureSeedData } from './db'
 import { useOnlineStatus } from './hooks/useOnlineStatus'
 import { clearSession, getSessionUser, login } from './services/authService'
-import { isFirebaseConfigured, syncNow } from './services/syncService'
+import {
+  isFirebaseConfigured,
+  startRealtimeSync,
+  stopRealtimeSync,
+  syncNow,
+} from './services/syncService'
 import {
   ensureDeviceId,
   ensureRuntimeSessionId,
@@ -76,8 +81,10 @@ function App() {
   const [infoMessage, setInfoMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
   const [isSyncing, setIsSyncing] = useState(false)
+  const [isRealtimeSyncActive, setIsRealtimeSyncActive] = useState(false)
   const syncInProgressRef = useRef(false)
   const lastAutoSyncPendingRef = useRef(0)
+  const lastBootstrapSyncRef = useRef('')
 
   const isOnline = useOnlineStatus()
   const firebaseConfigured = isFirebaseConfigured()
@@ -232,6 +239,46 @@ function App() {
     }
   }, [firebaseConfigured, currentUser, isOnline, pendingSyncCount, runSync])
 
+  useEffect(() => {
+    if (!currentUser) {
+      lastBootstrapSyncRef.current = ''
+      setIsRealtimeSyncActive(false)
+      stopRealtimeSync()
+      return
+    }
+
+    if (!firebaseConfigured) {
+      setIsRealtimeSyncActive(false)
+      stopRealtimeSync()
+      return
+    }
+
+    const cleanup = startRealtimeSync((message) => {
+      setIsRealtimeSyncActive(false)
+      notifyError(message)
+    })
+    setIsRealtimeSyncActive(true)
+
+    return () => {
+      setIsRealtimeSyncActive(false)
+      cleanup()
+    }
+  }, [firebaseConfigured, currentUser, notifyError])
+
+  useEffect(() => {
+    if (!firebaseConfigured || !currentUser || !isOnline) {
+      return
+    }
+
+    const syncKey = `${currentUser.id}:${currentUser.updatedAt}`
+    if (lastBootstrapSyncRef.current === syncKey) {
+      return
+    }
+
+    lastBootstrapSyncRef.current = syncKey
+    void runSync(true)
+  }, [firebaseConfigured, currentUser, isOnline, runSync])
+
   if (!ready) {
     return (
       <main className="app-shell">
@@ -303,6 +350,7 @@ function App() {
 
       <SyncPanel
         isConfigured={firebaseConfigured}
+        realtimeActive={isRealtimeSyncActive && isOnline}
         pendingCount={pendingSyncCount}
         lastSyncAt={lastSyncAt}
         syncing={isSyncing}

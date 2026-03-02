@@ -44,7 +44,10 @@ PWA offline-first para inventario y ventas de fin de semana con 3 sucursales y a
 - Sync opcional Firestore:
   - Boton "Sincronizar ahora"
   - Auto-sync al reconectar internet
+  - Sync inicial automatico al entrar cuando hay internet
+  - Escucha en tiempo real para reflejar cambios entre telefonos/laptops
   - Last-write-wins con `updatedAt`
+  - Reconciliacion de inventario desde movimientos para reducir conflictos
   - Cola local de pendientes (`syncQueue`)
 - Respaldo completo:
   - Exportacion JSON completa de la base local
