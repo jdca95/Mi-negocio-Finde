@@ -2,6 +2,8 @@ import Dexie, { type EntityTable } from 'dexie'
 import {
   DEFAULT_LOCATION_ID,
   DEFAULT_LOCATIONS,
+  DEFAULT_USER_SEED_VERSION,
+  DEFAULT_USERS,
   STORAGE_KEYS,
   nowForSeed,
 } from './constants'
@@ -19,7 +21,6 @@ import type {
   TransferItem,
   User,
 } from './types'
-import { hashPin } from './utils/security'
 
 export const buildBalanceId = (locationId: string, productId: string): string =>
   `${locationId}::${productId}`
@@ -70,10 +71,7 @@ let seedPromise: Promise<void> | null = null
 export const ensureSeedData = async (): Promise<void> => {
   if (!seedPromise) {
     seedPromise = (async () => {
-      const [adminPinHash, cashierPinHash] = await Promise.all([
-        hashPin('1234'),
-        hashPin('0000'),
-      ])
+      let didReseedUsers = false
 
       await db.transaction(
         'rw',
@@ -93,29 +91,37 @@ export const ensureSeedData = async (): Promise<void> => {
             )
           }
 
-          if ((await db.users.count()) === 0) {
-            await db.users.bulkAdd([
-              {
-                id: 'user-admin',
-                username: 'admin',
-                name: 'Administrador',
-                role: 'ADMIN',
-                pinHash: adminPinHash,
+          const existingUsers = await db.users.toArray()
+          const userSeedVersion = (await db.settings.get('userSeedVersion'))?.value ?? ''
+          if (
+            existingUsers.length === 0 ||
+            userSeedVersion !== DEFAULT_USER_SEED_VERSION
+          ) {
+            const existingById = new Map(existingUsers.map((user) => [user.id, user]))
+            const canonicalUserIds = new Set(DEFAULT_USERS.map((user) => user.id))
+
+            await db.users.bulkPut(
+              DEFAULT_USERS.map((user) => ({
+                ...user,
                 active: true,
-                createdAt: now,
+                createdAt: existingById.get(user.id)?.createdAt ?? now,
                 updatedAt: now,
-              },
-              {
-                id: 'user-cashier',
-                username: 'cajero',
-                name: 'Cajero',
-                role: 'CASHIER',
-                pinHash: cashierPinHash,
-                active: true,
-                createdAt: now,
-                updatedAt: now,
-              },
-            ])
+              })),
+            )
+
+            const staleUserIds = existingUsers
+              .filter((user) => !canonicalUserIds.has(user.id))
+              .map((user) => user.id)
+
+            if (staleUserIds.length > 0) {
+              await db.users.bulkDelete(staleUserIds)
+            }
+
+            await db.settings.put({
+              key: 'userSeedVersion',
+              value: DEFAULT_USER_SEED_VERSION,
+            })
+            didReseedUsers = true
           }
 
           if (!(await db.settings.get('activeLocationId'))) {
@@ -135,9 +141,12 @@ export const ensureSeedData = async (): Promise<void> => {
       if (!currentLocation) {
         localStorage.setItem(STORAGE_KEYS.activeLocationId, DEFAULT_LOCATION_ID)
       }
+
+      if (didReseedUsers) {
+        localStorage.removeItem(STORAGE_KEYS.sessionUserId)
+      }
     })()
   }
 
   await seedPromise
 }
-

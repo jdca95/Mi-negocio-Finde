@@ -53,6 +53,45 @@ export const DEFAULT_LOCATIONS: Array<Omit<Location, 'createdAt' | 'updatedAt'>>
 
 export const DEFAULT_LOCATION_ID = 'loc-suc-1'
 export const WAREHOUSE_LOCATION_ID = 'loc-casa'
+export const DEFAULT_USER_SEED_VERSION = '2'
+
+export const DEFAULT_USERS = [
+  {
+    id: 'user-admin',
+    username: 'diegocastro',
+    name: 'Diego Castro',
+    role: 'ADMIN' as const,
+    pinHash: '0a4e3e70597a358b9447fa8a647aadf5b76dde95c8e4ab02e5f8cee6caa1cd28',
+  },
+  {
+    id: 'user-cashier',
+    username: 'papa',
+    name: 'Papa',
+    role: 'ADMIN' as const,
+    pinHash: 'b6f6b6715fae0829382e6f3bef5fffcf0e7e87bb2136e511774768204b1d120b',
+  },
+  {
+    id: 'user-luis-castro',
+    username: 'luiscastro',
+    name: 'Luis Castro',
+    role: 'ADMIN' as const,
+    pinHash: '214538a798d46607ed8c5bb7cb54c13f9bc164789f576296189559feeef5b3ad',
+  },
+  {
+    id: 'user-mama',
+    username: 'mama',
+    name: 'Mama',
+    role: 'ADMIN' as const,
+    pinHash: '45614290270f9909ee6ffe6f52ae5f8360be81fec6d3868d8022e2d200be3de4',
+  },
+  {
+    id: 'user-alondra',
+    username: 'alondra',
+    name: 'Alondra',
+    role: 'ADMIN' as const,
+    pinHash: 'd66cd4cc6e5d2e8f736eb3efa2a53865d7fae6e6fb784759833ea8406fa1b44f',
+  },
+]
 
 export const nowForSeed = (): string => nowIso()
 

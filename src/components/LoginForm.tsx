@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { User } from '../types'
 
@@ -9,9 +9,15 @@ interface LoginFormProps {
 }
 
 export const LoginForm = ({ users, onLogin, errorMessage }: LoginFormProps) => {
-  const [username, setUsername] = useState('admin')
+  const [username, setUsername] = useState('')
   const [pin, setPin] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (!username && users.length > 0) {
+      setUsername(users[0].username)
+    }
+  }, [users, username])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -35,7 +41,7 @@ export const LoginForm = ({ users, onLogin, errorMessage }: LoginFormProps) => {
             list="users-list"
             value={username}
             onChange={(event) => setUsername(event.target.value)}
-            placeholder="admin"
+            placeholder="diegocastro"
             autoComplete="username"
           />
         </label>
@@ -64,8 +70,8 @@ export const LoginForm = ({ users, onLogin, errorMessage }: LoginFormProps) => {
       </form>
 
       <div className="auth-help">
-        <strong>Usuarios demo:</strong>
-        <p>`admin / 1234` y `cajero / 0000`</p>
+        <strong>Acceso:</strong>
+        <p>Usa tu usuario y el PIN asignado para tu cuenta.</p>
       </div>
     </section>
   )

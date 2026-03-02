@@ -53,10 +53,10 @@ PWA offline-first para inventario y ventas de fin de semana con 3 sucursales y a
   - Exportacion JSON completa de la base local
   - Restauracion desde archivo de respaldo
 
-## Credenciales iniciales (demo local)
+## Acceso inicial
 
-- Admin: `admin` / `1234`
-- Cajero: `cajero` / `0000`
+- La app arranca con usuarios locales preconfigurados para tu negocio.
+- Los PINs no se documentan en el repo; se administran fuera del codigo.
 
 ## Requisitos
 
