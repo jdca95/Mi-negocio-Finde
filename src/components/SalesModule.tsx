@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { PAYMENT_METHOD_LABELS } from '../constants'
 import { listInventoryView } from '../services/inventoryService'
@@ -24,6 +24,7 @@ interface CartLine {
 }
 
 const emptyCart: CartLine[] = []
+const MAX_RECENT_TOUCHES = 3
 
 export const SalesModule = ({
   locationId,
@@ -36,6 +37,9 @@ export const SalesModule = ({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH')
   const [cart, setCart] = useState<CartLine[]>(emptyCart)
   const [isSaving, setIsSaving] = useState(false)
+  const [isCartOpen, setIsCartOpen] = useState(false)
+  const [isRecentSalesOpen, setIsRecentSalesOpen] = useState(false)
+  const [recentlyTouchedProductIds, setRecentlyTouchedProductIds] = useState<string[]>([])
 
   const inventory = useLiveQuery(
     () =>
@@ -53,17 +57,78 @@ export const SalesModule = ({
     [inventory],
   )
 
+  const inventoryMap = useMemo(
+    () => new Map(inventory.map((product) => [product.productId, product])),
+    [inventory],
+  )
+
   const recentSales = useLiveQuery(
-    () => getRecentSales(locationId, 20),
+    () => getRecentSales(locationId, 8),
     [locationId],
     [] as RecentSaleView[],
   )
 
+  useEffect(() => {
+    setCart((current) => {
+      let changed = false
+      const nextCart = current
+        .map((line) => {
+          const latest = inventoryMap.get(line.productId)
+          if (!latest || latest.stock <= 0) {
+            changed = true
+            return null
+          }
+
+          const nextQty = Math.min(line.qty, latest.stock)
+          if (
+            nextQty !== line.qty ||
+            latest.stock !== line.stock ||
+            latest.price !== line.price ||
+            latest.name !== line.name
+          ) {
+            changed = true
+            return {
+              ...line,
+              name: latest.name,
+              stock: latest.stock,
+              price: latest.price,
+              qty: nextQty,
+            }
+          }
+
+          return line
+        })
+        .filter((line): line is CartLine => line !== null && line.qty > 0)
+
+      return changed ? nextCart : current
+    })
+  }, [inventoryMap])
+
   const cartSubtotal = useMemo(
-    () =>
-      cart.reduce((accumulated, row) => accumulated + row.qty * row.price, 0),
+    () => cart.reduce((accumulated, row) => accumulated + row.qty * row.price, 0),
     [cart],
   )
+
+  const cartPieces = useMemo(
+    () => cart.reduce((accumulated, row) => accumulated + row.qty, 0),
+    [cart],
+  )
+
+  const recentTouchNames = useMemo(
+    () =>
+      recentlyTouchedProductIds
+        .map((productId) => inventoryMap.get(productId)?.name)
+        .filter((name): name is string => Boolean(name))
+        .slice(0, MAX_RECENT_TOUCHES),
+    [inventoryMap, recentlyTouchedProductIds],
+  )
+
+  const rememberTouch = (productId: string) => {
+    setRecentlyTouchedProductIds((current) => {
+      const next = [productId, ...current.filter((entry) => entry !== productId)]
+      return next.slice(0, MAX_RECENT_TOUCHES)
+    })
+  }
 
   const addToCart = (productId: string) => {
     const row = productsForSale.find((product) => product.productId === productId)
@@ -72,12 +137,27 @@ export const SalesModule = ({
       return
     }
 
+    const existing = cart.find((line) => line.productId === productId)
+    if (existing && existing.qty >= row.stock) {
+      onError(`Ya alcanzaste el stock disponible para ${row.name}.`)
+      return
+    }
+
+    rememberTouch(productId)
+
     setCart((current) => {
-      const existing = current.find((line) => line.productId === productId)
-      if (existing) {
-        const nextQty = Math.min(existing.qty + 1, row.stock)
+      const currentLine = current.find((line) => line.productId === productId)
+      if (currentLine) {
         return current.map((line) =>
-          line.productId === productId ? { ...line, qty: nextQty, stock: row.stock } : line,
+          line.productId === productId
+            ? {
+                ...line,
+                qty: Math.min(line.qty + 1, row.stock),
+                stock: row.stock,
+                price: row.price,
+                name: row.name,
+              }
+            : line,
         )
       }
 
@@ -101,11 +181,20 @@ export const SalesModule = ({
           if (line.productId !== productId) {
             return line
           }
-          const safeQty = Math.max(0, Math.min(qty, line.stock))
+
+          if (!Number.isFinite(qty)) {
+            return line
+          }
+
+          const safeQty = Math.max(0, Math.min(Math.trunc(qty), line.stock))
           return { ...line, qty: safeQty }
         })
         .filter((line) => line.qty > 0),
     )
+  }
+
+  const removeFromCart = (productId: string) => {
+    setCart((current) => current.filter((line) => line.productId !== productId))
   }
 
   const handleSale = async () => {
@@ -126,6 +215,8 @@ export const SalesModule = ({
         })),
       })
       setCart(emptyCart)
+      setPaymentMethod('CASH')
+      setIsCartOpen(false)
       onNotify('Venta registrada correctamente.')
     } catch (error) {
       onError(error instanceof Error ? error.message : 'No se pudo registrar la venta.')
@@ -135,65 +226,104 @@ export const SalesModule = ({
   }
 
   return (
-    <section className="module-card">
+    <section className="module-card sales-mobile-shell">
       <div className="module-header">
         <h2>Ventas rapidas</h2>
         <p>Busca productos, agrega al carrito y confirma en segundos.</p>
       </div>
 
-      <div className="sales-grid">
-        <div className="panel">
-          <h3>Catalogo</h3>
-          <label>
-            Buscar
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Nombre o SKU"
-            />
-          </label>
-          <div className="list-scroll">
-            {productsForSale.map((product) => (
-              <article key={product.productId} className="list-item">
-                <div>
-                  <strong>{product.name}</strong>
-                  <small>
-                    Stock {formatNumber(product.stock)} | {formatCurrency(product.price)}
-                  </small>
-                </div>
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => addToCart(product.productId)}
-                >
-                  Agregar
-                </button>
-              </article>
-            ))}
-            {!productsForSale.length ? <p>Sin productos disponibles.</p> : null}
-          </div>
-        </div>
+      <div className="sales-search-sticky">
+        <label>
+          Buscar
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Buscar por nombre o SKU"
+          />
+        </label>
 
-        <div className="panel">
-          <h3>Carrito</h3>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Producto</th>
-                  <th>Precio</th>
-                  <th>Stock</th>
-                  <th>Cantidad</th>
-                  <th>Subtotal</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cart.map((line) => (
-                  <tr key={line.productId}>
-                    <td>{line.name}</td>
-                    <td>{formatCurrency(line.price)}</td>
-                    <td>{formatNumber(line.stock)}</td>
-                    <td>
+        <div className="sales-summary-strip">
+          <span>
+            En carrito:{' '}
+            <strong>
+              {cart.length
+                ? `${formatNumber(cart.length)} ${cart.length === 1 ? 'producto' : 'productos'}`
+                : 'sin productos'}
+            </strong>
+          </span>
+          <span>
+            Recientes:{' '}
+            <strong>{recentTouchNames.length ? recentTouchNames.join(' | ') : 'Ninguno'}</strong>
+          </span>
+        </div>
+      </div>
+
+      <div className="sales-product-list">
+        {productsForSale.map((product) => {
+          const cartLine = cart.find((line) => line.productId === product.productId)
+          return (
+            <article key={product.productId} className="sales-product-card">
+              <div className="sales-product-header">
+                <div>
+                  <h3>{product.name}</h3>
+                  <div className="sales-product-meta">
+                    <span>Stock: {formatNumber(product.stock)}</span>
+                    <strong>{formatCurrency(product.price)}</strong>
+                  </div>
+                </div>
+                {cartLine ? (
+                  <span className="sales-qty-badge">x{formatNumber(cartLine.qty)}</span>
+                ) : null}
+              </div>
+
+              <button
+                type="button"
+                className="sales-add-button"
+                onClick={() => addToCart(product.productId)}
+              >
+                Agregar
+              </button>
+            </article>
+          )
+        })}
+
+        {!productsForSale.length ? (
+          <div className="panel">
+            <p>Sin productos disponibles para vender.</p>
+          </div>
+        ) : null}
+      </div>
+
+      {isCartOpen ? (
+        <section className="sales-cart-panel open">
+          <div className="module-header">
+            <h3>Carrito</h3>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => setIsCartOpen(false)}
+            >
+              Ocultar
+            </button>
+          </div>
+
+          <>
+            <div className="sales-cart-list">
+              {cart.map((line) => (
+                <article key={line.productId} className="sales-cart-line">
+                  <div className="sales-cart-line-head">
+                    <div>
+                      <strong>{line.name}</strong>
+                      <small>
+                        {formatCurrency(line.price)} c/u | Stock {formatNumber(line.stock)}
+                      </small>
+                    </div>
+                    <strong>{formatCurrency(line.qty * line.price)}</strong>
+                  </div>
+
+                  <div className="sales-cart-line-controls">
+                    <label>
+                      Cantidad
                       <input
                         type="number"
                         min="0"
@@ -203,103 +333,131 @@ export const SalesModule = ({
                           updateQuantity(line.productId, Number(event.target.value))
                         }
                       />
-                    </td>
-                    <td>{formatCurrency(line.qty * line.price)}</td>
-                  </tr>
-                ))}
-                {!cart.length ? (
-                  <tr>
-                    <td colSpan={5}>Carrito vacio.</td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
+                    </label>
 
-          <div className="actions-row">
-            <label>
-              Metodo de pago
-              <select
-                value={paymentMethod}
-                onChange={(event) => setPaymentMethod(event.target.value as PaymentMethod)}
-              >
-                {Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <p className="metric-box">Total: {formatCurrency(cartSubtotal)}</p>
-            <button type="button" disabled={isSaving} onClick={handleSale}>
-              {isSaving ? 'Guardando...' : 'Confirmar venta'}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="panel">
-        <h3>Ventas recientes</h3>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Fecha</th>
-                <th>Metodo</th>
-                <th>Total</th>
-                <th>Utilidad</th>
-                <th>Estado</th>
-                {canCancel ? <th>Acciones</th> : null}
-              </tr>
-            </thead>
-            <tbody>
-              {recentSales.map((sale) => (
-                <tr key={sale.id}>
-                  <td>{sale.folio ?? sale.id.slice(0, 8)}</td>
-                  <td>{sale.createdLabel}</td>
-                  <td>{PAYMENT_METHOD_LABELS[sale.paymentMethod]}</td>
-                  <td>{formatCurrency(sale.total)}</td>
-                  <td>{formatCurrency(sale.estimatedProfit)}</td>
-                  <td>{sale.status === 'COMPLETED' ? 'Completada' : 'Cancelada'}</td>
-                  {canCancel ? (
-                    <td>
-                      {sale.status === 'COMPLETED' ? (
-                        <button
-                          type="button"
-                          className="secondary danger"
-                          onClick={async () => {
-                            const reason = window.prompt('Motivo de cancelacion')
-                            if (!reason) {
-                              return
-                            }
-                            try {
-                              await cancelSale({
-                                saleId: sale.id,
-                                reason,
-                                performedBy,
-                              })
-                              onNotify('Venta cancelada con reversa de stock.')
-                            } catch (error) {
-                              onError(
-                                error instanceof Error
-                                  ? error.message
-                                  : 'No se pudo cancelar venta.',
-                              )
-                            }
-                          }}
-                        >
-                          Cancelar
-                        </button>
-                      ) : null}
-                    </td>
-                  ) : null}
-                </tr>
+                    <button
+                      type="button"
+                      className="secondary danger"
+                      onClick={() => removeFromCart(line.productId)}
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                </article>
               ))}
-            </tbody>
-          </table>
+
+              {!cart.length ? <p>Carrito vacio.</p> : null}
+            </div>
+          </>
+        </section>
+      ) : null}
+
+      <section className="panel sales-recent-section">
+        <button
+          type="button"
+          className="sales-recent-toggle"
+          onClick={() => setIsRecentSalesOpen((current) => !current)}
+        >
+          <span>Ventas recientes</span>
+          <span>{isRecentSalesOpen ? 'Ocultar' : 'Mostrar'}</span>
+        </button>
+
+        {isRecentSalesOpen ? (
+          <div className="sales-recent-cards">
+            {recentSales.map((sale) => (
+              <article key={sale.id} className="sales-recent-card">
+                <div className="sales-recent-card-head">
+                  <strong>{sale.folio ?? sale.id.slice(0, 8)}</strong>
+                  <span>{sale.status === 'COMPLETED' ? 'Completada' : 'Cancelada'}</span>
+                </div>
+
+                <div className="sales-recent-card-meta">
+                  <span>{sale.createdLabel}</span>
+                  <span>{PAYMENT_METHOD_LABELS[sale.paymentMethod]}</span>
+                </div>
+
+                <div className="sales-recent-card-total">
+                  <strong>{formatCurrency(sale.total)}</strong>
+                  <small>Utilidad: {formatCurrency(sale.estimatedProfit)}</small>
+                </div>
+
+                {canCancel && sale.status === 'COMPLETED' ? (
+                  <button
+                    type="button"
+                    className="secondary danger"
+                    onClick={async () => {
+                      const reason = window.prompt('Motivo de cancelacion')
+                      if (!reason) {
+                        return
+                      }
+                      try {
+                        await cancelSale({
+                          saleId: sale.id,
+                          reason,
+                          performedBy,
+                        })
+                        onNotify('Venta cancelada con reversa de stock.')
+                      } catch (error) {
+                        onError(
+                          error instanceof Error
+                            ? error.message
+                            : 'No se pudo cancelar venta.',
+                        )
+                      }
+                    }}
+                  >
+                    Cancelar
+                  </button>
+                ) : null}
+              </article>
+            ))}
+
+            {!recentSales.length ? <p>Sin ventas recientes.</p> : null}
+          </div>
+        ) : null}
+      </section>
+
+      <div className="sales-cart-bar">
+        <div className="sales-payment-buttons sales-payment-buttons--sticky">
+          {Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              className={
+                paymentMethod === value
+                  ? 'sales-payment-button is-active'
+                  : 'sales-payment-button'
+              }
+              onClick={() => setPaymentMethod(value as PaymentMethod)}
+            >
+              {label}
+            </button>
+          ))}
         </div>
+
+        <div className="sales-cart-bar-main">
+          <div className="sales-cart-bar-summary">
+            <strong>{formatNumber(cartPieces)} piezas</strong>
+            <span>Total: {formatCurrency(cartSubtotal)}</span>
+          </div>
+
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => setIsCartOpen((current) => !current)}
+          >
+            {isCartOpen ? 'Cerrar carrito' : 'Editar carrito'}
+          </button>
+        </div>
+
+        <button
+          type="button"
+          className="sales-confirm-button sales-confirm-button--sticky"
+          disabled={isSaving || cart.length === 0}
+          onClick={handleSale}
+        >
+          {isSaving ? 'Guardando...' : `Confirmar venta ${formatCurrency(cartSubtotal)}`}
+        </button>
       </div>
     </section>
   )
