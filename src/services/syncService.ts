@@ -53,6 +53,9 @@ let firebaseModulesPromise: Promise<{
 }> | null = null
 let realtimeCleanup: (() => void) | null = null
 
+const readEnvValue = (key: (typeof REQUIRED_KEYS)[number] | 'VITE_FIREBASE_MESSAGING_SENDER_ID'): string =>
+  String(import.meta.env[key] ?? '').trim()
+
 const MOVEMENT_OUT_TYPES: MovementType[] = ['SALE_OUT', 'TRANSFER_OUT', 'ADJUST_OUT']
 
 const getFirebaseModules = async () => {
@@ -72,11 +75,11 @@ const getFirestoreInstance = async () => {
     firebaseApp =
       firebase.app.getApps()[0] ??
       firebase.app.initializeApp({
-        apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-        authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-        projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-        appId: import.meta.env.VITE_FIREBASE_APP_ID,
-        messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+        apiKey: readEnvValue('VITE_FIREBASE_API_KEY'),
+        authDomain: readEnvValue('VITE_FIREBASE_AUTH_DOMAIN'),
+        projectId: readEnvValue('VITE_FIREBASE_PROJECT_ID'),
+        appId: readEnvValue('VITE_FIREBASE_APP_ID'),
+        messagingSenderId: readEnvValue('VITE_FIREBASE_MESSAGING_SENDER_ID'),
       })
   }
   return {
@@ -286,7 +289,7 @@ const applyRemoteRecords = async (
 }
 
 export const isFirebaseConfigured = (): boolean =>
-  REQUIRED_KEYS.every((key) => Boolean(import.meta.env[key]))
+  REQUIRED_KEYS.every((key) => Boolean(readEnvValue(key)))
 
 export const syncNow = async (): Promise<SyncRunResult> => {
   if (!isFirebaseConfigured()) {

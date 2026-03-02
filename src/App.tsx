@@ -141,21 +141,30 @@ function App() {
 
       syncInProgressRef.current = true
       setIsSyncing(true)
-      const result = await syncNow()
-      setIsSyncing(false)
-      syncInProgressRef.current = false
+      try {
+        const result = await syncNow()
 
-      if (silent) {
+        if (silent) {
+          if (result.status === 'error') {
+            notifyError(result.message)
+          }
+          return
+        }
+
         if (result.status === 'error') {
           notifyError(result.message)
+        } else {
+          notify(result.message)
         }
-        return
-      }
-
-      if (result.status === 'error') {
-        notifyError(result.message)
-      } else {
-        notify(result.message)
+      } catch (error) {
+        notifyError(
+          error instanceof Error
+            ? error.message
+            : 'Error inesperado durante la sincronizacion.',
+        )
+      } finally {
+        setIsSyncing(false)
+        syncInProgressRef.current = false
       }
     },
     [notify, notifyError],
