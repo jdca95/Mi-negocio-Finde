@@ -49,8 +49,10 @@ type SyncRecord = {
 let firebaseApp: FirebaseApp | null = null
 let firebaseModulesPromise: Promise<{
   app: typeof import('firebase/app')
+  auth: typeof import('firebase/auth')
   firestore: typeof import('firebase/firestore')
 }> | null = null
+let firebaseAuthPromise: Promise<void> | null = null
 let realtimeCleanup: (() => void) | null = null
 
 const readEnvValue = (key: (typeof REQUIRED_KEYS)[number] | 'VITE_FIREBASE_MESSAGING_SENDER_ID'): string =>
@@ -62,11 +64,52 @@ const getFirebaseModules = async () => {
   if (!firebaseModulesPromise) {
     firebaseModulesPromise = Promise.all([
       import('firebase/app'),
+      import('firebase/auth'),
       import('firebase/firestore'),
-    ]).then(([app, firestore]) => ({ app, firestore }))
+    ]).then(([app, auth, firestore]) => ({ app, auth, firestore }))
   }
 
   return firebaseModulesPromise
+}
+
+const getFirebaseAuthErrorMessage = (error: unknown): string => {
+  const message = parseError(error)
+
+  if (
+    message.includes('auth/operation-not-allowed') ||
+    message.includes('operation-not-allowed') ||
+    message.includes('auth/admin-restricted-operation') ||
+    message.includes('admin-restricted-operation')
+  ) {
+    return 'Firebase Auth anonima no esta habilitada. Activa Authentication > Sign-in method > Anonymous en Firebase.'
+  }
+
+  return `No se pudo autenticar con Firebase: ${message}`
+}
+
+const ensureFirebaseAuthSession = async (
+  app: FirebaseApp,
+  authModule: typeof import('firebase/auth'),
+): Promise<void> => {
+  if (!firebaseAuthPromise) {
+    firebaseAuthPromise = (async () => {
+      const auth = authModule.getAuth(app)
+      await auth.authStateReady?.()
+
+      if (auth.currentUser) {
+        return
+      }
+
+      try {
+        await authModule.signInAnonymously(auth)
+      } catch (error) {
+        firebaseAuthPromise = null
+        throw new Error(getFirebaseAuthErrorMessage(error))
+      }
+    })()
+  }
+
+  await firebaseAuthPromise
 }
 
 const getFirestoreInstance = async () => {
@@ -82,6 +125,9 @@ const getFirestoreInstance = async () => {
         messagingSenderId: readEnvValue('VITE_FIREBASE_MESSAGING_SENDER_ID'),
       })
   }
+
+  await ensureFirebaseAuthSession(firebaseApp, firebase.auth)
+
   return {
     db: firebase.firestore.getFirestore(firebaseApp),
     firestore: firebase.firestore,

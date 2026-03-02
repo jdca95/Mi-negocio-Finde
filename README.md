@@ -101,7 +101,21 @@ VITE_FIREBASE_APP_ID=...
 VITE_FIREBASE_MESSAGING_SENDER_ID=...
 ```
 
-Si no configuras Firebase, la app funciona en modo local-only sin errores.
+3. En Firebase Console, activa `Authentication -> Sign-in method -> Anonymous`.
+4. En `Firestore Database -> Rules`, usa reglas cerradas que exijan usuario autenticado:
+
+```txt
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
+```
+
+La app inicia sesion anonima automaticamente cuando Firebase esta configurado. Si no configuras Firebase, sigue funcionando en modo local-only sin errores.
 
 ## Deploy
 
