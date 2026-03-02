@@ -30,6 +30,7 @@ const PUSH_ENTITY_TYPES: SyncEntityType[] = [
   'transfers',
   'transferItems',
   'stockMovements',
+  'activityEvents',
 ]
 
 type RemoteEntityType = SyncEntityType | 'locations' | 'users'
@@ -156,6 +157,8 @@ const getEntityTable = (entityType: RemoteEntityType): Table<SyncRecord, string>
       return db.transferItems as unknown as Table<SyncRecord, string>
     case 'stockMovements':
       return db.stockMovements as unknown as Table<SyncRecord, string>
+    case 'activityEvents':
+      return db.activityEvents as unknown as Table<SyncRecord, string>
     default:
       return db.products as unknown as Table<SyncRecord, string>
   }

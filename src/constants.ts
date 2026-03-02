@@ -1,6 +1,7 @@
 import type {
   AdjustmentMode,
   AdjustmentReason,
+  ActivityAction,
   Location,
   MovementType,
   PaymentMethod,
@@ -18,7 +19,7 @@ export const STORAGE_KEYS = {
   runtimeSessionId: 'mnf.runtimeSessionId',
 } as const
 
-export const BACKUP_SCHEMA_VERSION = 1
+export const BACKUP_SCHEMA_VERSION = 2
 
 export const DEFAULT_LOCATIONS: Array<Omit<Location, 'createdAt' | 'updatedAt'>> = [
   {
@@ -135,4 +136,14 @@ export const PERIOD_PRESET_LABELS: Record<PeriodPreset, string> = {
   WEEK: 'Semana',
   MONTH: 'Mes',
   CUSTOM: 'Personalizado',
+}
+
+export const ACTIVITY_ACTION_LABELS: Record<ActivityAction, string> = {
+  PRODUCT_CREATED: 'Producto creado',
+  PRODUCT_UPDATED: 'Producto editado',
+  PRODUCT_STATUS_CHANGED: 'Estado de producto',
+  SALE_CREATED: 'Venta registrada',
+  SALE_CANCELED: 'Venta cancelada',
+  TRANSFER_CREATED: 'Transferencia registrada',
+  STOCK_ADJUSTED: 'Ajuste de inventario',
 }

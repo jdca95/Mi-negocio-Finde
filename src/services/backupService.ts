@@ -54,6 +54,10 @@ const parseBackup = (rawText: string): BackupPayload => {
     }
   }
 
+  if (!Array.isArray(typedPayload.data.activityEvents)) {
+    ;(typedPayload.data as BackupPayload['data']).activityEvents = []
+  }
+
   return typedPayload as BackupPayload
 }
 
@@ -68,6 +72,7 @@ export const exportFullBackup = async (): Promise<void> => {
     transfers,
     transferItems,
     stockMovements,
+    activityEvents,
     users,
     settings,
     syncQueue,
@@ -81,6 +86,7 @@ export const exportFullBackup = async (): Promise<void> => {
     db.transfers.toArray(),
     db.transferItems.toArray(),
     db.stockMovements.toArray(),
+    db.activityEvents.toArray(),
     db.users.toArray(),
     db.settings.toArray(),
     db.syncQueue.toArray(),
@@ -103,6 +109,7 @@ export const exportFullBackup = async (): Promise<void> => {
       transfers,
       transferItems,
       stockMovements,
+      activityEvents,
       users,
       settings,
       syncQueue,
@@ -130,6 +137,7 @@ export const importFullBackup = async (rawText: string): Promise<void> => {
       db.transfers,
       db.transferItems,
       db.stockMovements,
+      db.activityEvents,
       db.users,
       db.settings,
       db.syncQueue,
@@ -145,6 +153,7 @@ export const importFullBackup = async (rawText: string): Promise<void> => {
         db.sales.clear(),
         db.inventoryBalances.clear(),
         db.products.clear(),
+        db.activityEvents.clear(),
         db.users.clear(),
         db.locations.clear(),
         db.settings.clear(),
@@ -160,6 +169,7 @@ export const importFullBackup = async (rawText: string): Promise<void> => {
         db.transfers.bulkPut(payload.data.transfers),
         db.transferItems.bulkPut(payload.data.transferItems),
         db.stockMovements.bulkPut(payload.data.stockMovements),
+        db.activityEvents.bulkPut(payload.data.activityEvents),
         db.users.bulkPut(payload.data.users),
         db.settings.bulkPut(payload.data.settings),
         db.syncQueue.bulkPut(payload.data.syncQueue),
@@ -178,4 +188,3 @@ export const importFullBackup = async (rawText: string): Promise<void> => {
     },
   )
 }
-

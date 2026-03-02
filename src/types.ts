@@ -37,6 +37,18 @@ export type SyncEntityType =
   | 'transfers'
   | 'transferItems'
   | 'stockMovements'
+  | 'activityEvents'
+
+export type ActivityAction =
+  | 'PRODUCT_CREATED'
+  | 'PRODUCT_UPDATED'
+  | 'PRODUCT_STATUS_CHANGED'
+  | 'SALE_CREATED'
+  | 'SALE_CANCELED'
+  | 'TRANSFER_CREATED'
+  | 'STOCK_ADJUSTED'
+
+export type ActivityEntityType = 'PRODUCT' | 'SALE' | 'TRANSFER' | 'ADJUSTMENT'
 
 export interface Location {
   id: string
@@ -154,6 +166,22 @@ export interface User {
   role: Role
   pinHash: string
   active: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ActivityEvent {
+  id: string
+  action: ActivityAction
+  entityType: ActivityEntityType
+  entityId: string
+  productId?: string
+  locationId?: string
+  relatedLocationId?: string
+  qty?: number
+  summary: string
+  details: string
+  performedBy: string
   createdAt: string
   updatedAt: string
 }
@@ -298,6 +326,7 @@ export interface BackupPayload {
     transfers: Transfer[]
     transferItems: TransferItem[]
     stockMovements: StockMovement[]
+    activityEvents: ActivityEvent[]
     users: User[]
     settings: Setting[]
     syncQueue: SyncQueueItem[]

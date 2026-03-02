@@ -77,6 +77,7 @@ export const InventoryModule = ({
           cost: Number(formState.cost),
           price: Number(formState.price),
           minStock: Number(formState.minStock),
+          performedBy,
         })
         onNotify('Producto actualizado.')
       } else {
@@ -280,7 +281,7 @@ export const InventoryModule = ({
                       className="secondary danger"
                       onClick={async () => {
                         try {
-                          await setProductActive(row.productId, !row.active)
+                          await setProductActive(row.productId, !row.active, performedBy)
                           onNotify(row.active ? 'Producto inactivado.' : 'Producto activado.')
                         } catch (error) {
                           onError(

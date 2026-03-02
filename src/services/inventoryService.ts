@@ -1,6 +1,7 @@
 import { db, buildBalanceId, buildEntityId } from '../db'
 import { nowIso } from '../utils/date'
 import { getRuntimeMeta } from '../utils/runtime'
+import { buildActivityEvent, queueActivityEvent } from './activityService'
 import { buildSyncQueueItem } from './syncQueueService'
 import type {
   AdjustmentMode,
@@ -33,6 +34,7 @@ interface UpdateProductInput {
   cost: number
   price: number
   minStock: number
+  performedBy: string
 }
 
 interface AdjustStockInput {
@@ -122,6 +124,21 @@ export const listInventoryView = async (
 
 const normalizeSku = (sku: string): string => sku.trim().toUpperCase()
 
+const buildProductSnapshot = (input: {
+  name: string
+  sku: string
+  cost: number
+  price: number
+  minStock: number
+}): string =>
+  [
+    `nombre=${input.name}`,
+    `sku=${input.sku || '-'}`,
+    `costo=${Number(input.cost).toFixed(2)}`,
+    `precio=${Number(input.price).toFixed(2)}`,
+    `min=${Number(input.minStock)}`,
+  ].join(' | ')
+
 const findProductBySkuOrName = async (
   sku: string,
   name: string,
@@ -172,7 +189,14 @@ export const createProduct = async (input: CreateProductInput): Promise<Product>
 
   await db.transaction(
     'rw',
-    [db.products, db.locations, db.inventoryBalances, db.stockMovements, db.syncQueue],
+    [
+      db.products,
+      db.locations,
+      db.inventoryBalances,
+      db.stockMovements,
+      db.activityEvents,
+      db.syncQueue,
+    ],
     async () => {
       await db.products.add(product)
       await db.syncQueue.put(buildSyncQueueItem('products', product.id, now))
@@ -211,6 +235,21 @@ export const createProduct = async (input: CreateProductInput): Promise<Product>
         })
         await db.syncQueue.put(buildSyncQueueItem('stockMovements', movementId, now))
       }
+
+      await queueActivityEvent(
+        buildActivityEvent({
+          action: 'PRODUCT_CREATED',
+          entityType: 'PRODUCT',
+          entityId: product.id,
+          productId: product.id,
+          locationId: input.locationId,
+          qty: input.initialStock,
+          performedBy: input.performedBy,
+          createdAt: now,
+          summary: `Producto creado: ${product.name}`,
+          details: `${buildProductSnapshot(product)} | stockInicial=${Number(input.initialStock)}`,
+        }),
+      )
     },
   )
 
@@ -243,25 +282,41 @@ export const updateProduct = async (
     throw new Error('Nombre o SKU ya utilizado por otro producto.')
   }
 
-  await db.transaction('rw', db.products, db.syncQueue, async () => {
-    await db.products.update(productId, {
+  await db.transaction('rw', db.products, db.activityEvents, db.syncQueue, async () => {
+    const nextValues = {
       name,
       sku,
       cost: Number(input.cost),
       price: Number(input.price),
       minStock: Number(input.minStock),
       updatedAt: now,
-    })
+    }
+
+    await db.products.update(productId, nextValues)
     await db.syncQueue.put(buildSyncQueueItem('products', productId, now))
+
+    await queueActivityEvent(
+      buildActivityEvent({
+        action: 'PRODUCT_UPDATED',
+        entityType: 'PRODUCT',
+        entityId: productId,
+        productId,
+        performedBy: input.performedBy,
+        createdAt: now,
+        summary: `Producto editado: ${name}`,
+        details: `antes: ${buildProductSnapshot(current)} || despues: ${buildProductSnapshot(nextValues)}`,
+      }),
+    )
   })
 }
 
 export const setProductActive = async (
   productId: string,
   active: boolean,
+  performedBy: string,
 ): Promise<void> => {
   const now = nowIso()
-  await db.transaction('rw', db.products, db.syncQueue, async () => {
+  await db.transaction('rw', db.products, db.activityEvents, db.syncQueue, async () => {
     const product = await db.products.get(productId)
     if (!product) {
       throw new Error('Producto no encontrado.')
@@ -269,6 +324,19 @@ export const setProductActive = async (
 
     await db.products.update(productId, { active, updatedAt: now })
     await db.syncQueue.put(buildSyncQueueItem('products', productId, now))
+
+    await queueActivityEvent(
+      buildActivityEvent({
+        action: 'PRODUCT_STATUS_CHANGED',
+        entityType: 'PRODUCT',
+        entityId: productId,
+        productId,
+        performedBy,
+        createdAt: now,
+        summary: `${active ? 'Producto activado' : 'Producto inactivado'}: ${product.name}`,
+        details: `estado=${active ? 'activo' : 'inactivo'}`,
+      }),
+    )
   })
 }
 
@@ -282,12 +350,20 @@ export const adjustStock = async (input: AdjustStockInput): Promise<void> => {
 
   await db.transaction(
     'rw',
-    db.inventoryBalances,
-    db.stockMovements,
-    db.syncQueue,
+    [
+      db.inventoryBalances,
+      db.products,
+      db.stockMovements,
+      db.activityEvents,
+      db.syncQueue,
+    ],
     async () => {
       const balance = await getOrCreateBalance(input.locationId, input.productId, now)
       const previousStock = balance.stock
+      const product = await db.products.get(input.productId)
+      if (!product) {
+        throw new Error('Producto no encontrado.')
+      }
 
       let newStock = previousStock
       let movementType: 'ADJUST_IN' | 'ADJUST_OUT' | 'ADJUST_SET' = 'ADJUST_IN'
@@ -335,6 +411,21 @@ export const adjustStock = async (input: AdjustStockInput): Promise<void> => {
         updatedAt: now,
       })
       await db.syncQueue.put(buildSyncQueueItem('stockMovements', movementId, now))
+
+      await queueActivityEvent(
+        buildActivityEvent({
+          action: 'STOCK_ADJUSTED',
+          entityType: 'ADJUSTMENT',
+          entityId: movementId,
+          productId: input.productId,
+          locationId: input.locationId,
+          qty: movementQty,
+          performedBy: input.performedBy,
+          createdAt: now,
+          summary: `Ajuste ${movementType} en ${product.name}`,
+          details: `antes=${previousStock} | despues=${newStock} | motivo=${input.reason}${input.notes ? ` | nota=${input.notes.trim()}` : ''}`,
+        }),
+      )
     },
   )
 }

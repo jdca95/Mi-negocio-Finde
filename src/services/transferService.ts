@@ -1,6 +1,7 @@
 import { db, buildBalanceId, buildEntityId } from '../db'
 import { nowIso } from '../utils/date'
 import { buildFolio, getRuntimeMeta } from '../utils/runtime'
+import { buildActivityEvent, queueActivityEvent } from './activityService'
 import { buildSyncQueueItem } from './syncQueueService'
 import type { SaleItemInput, Transfer, TransferItem } from '../types'
 
@@ -68,6 +69,7 @@ export const createTransfer = async (
       db.transfers,
       db.transferItems,
       db.stockMovements,
+      db.activityEvents,
       db.syncQueue,
     ],
     async () => {
@@ -164,6 +166,22 @@ export const createTransfer = async (
         })
         await db.syncQueue.put(buildSyncQueueItem('stockMovements', inMovementId, now))
       }
+
+      const totalQty = normalizedItems.reduce((sum, item) => sum + item.qty, 0)
+      await queueActivityEvent(
+        buildActivityEvent({
+          action: 'TRANSFER_CREATED',
+          entityType: 'TRANSFER',
+          entityId: transfer.id,
+          locationId: input.fromLocationId,
+          relatedLocationId: input.toLocationId,
+          qty: totalQty,
+          performedBy: input.performedBy,
+          createdAt: now,
+          summary: `Transferencia registrada: ${transfer.folio ?? transfer.id}`,
+          details: `items=${totalQty} | origen=${fromLocation.code} | destino=${toLocation.code}${transfer.notes ? ` | nota=${transfer.notes}` : ''}`,
+        }),
+      )
     },
   )
 

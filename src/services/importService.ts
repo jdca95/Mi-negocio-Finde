@@ -1,6 +1,7 @@
 import { db, buildBalanceId, buildEntityId } from '../db'
 import { nowIso } from '../utils/date'
 import { getRuntimeMeta } from '../utils/runtime'
+import { buildActivityEvent, queueActivityEvent } from './activityService'
 import { buildSyncQueueItem } from './syncQueueService'
 import type { CsvProductRow, CsvValidationResult, Product } from '../types'
 
@@ -170,6 +171,7 @@ export const importProductsFromCsv = async (
       db.products,
       db.inventoryBalances,
       db.stockMovements,
+      db.activityEvents,
       db.syncQueue,
     ],
     async () => {
@@ -211,6 +213,21 @@ export const importProductsFromCsv = async (
           targetProduct = newProduct
           created += 1
 
+          await queueActivityEvent(
+            buildActivityEvent({
+              action: 'PRODUCT_CREATED',
+              entityType: 'PRODUCT',
+              entityId: newProduct.id,
+              productId: newProduct.id,
+              locationId: targetLocationId,
+              qty: row.stock,
+              performedBy: input.performedBy,
+              createdAt: now,
+              summary: `Producto creado por CSV: ${newProduct.name}`,
+              details: `sku=${newProduct.sku || '-'} | costo=${newProduct.cost.toFixed(2)} | precio=${newProduct.price.toFixed(2)} | stockInicial=${row.stock}`,
+            }),
+          )
+
           for (const location of locations) {
             const balance = {
               id: buildBalanceId(location.id, productId),
@@ -242,6 +259,19 @@ export const importProductsFromCsv = async (
             products[index] = refreshed
           }
           updated += 1
+
+          await queueActivityEvent(
+            buildActivityEvent({
+              action: 'PRODUCT_UPDATED',
+              entityType: 'PRODUCT',
+              entityId: refreshed.id,
+              productId: refreshed.id,
+              performedBy: input.performedBy,
+              createdAt: now,
+              summary: `Producto editado por CSV: ${refreshed.name}`,
+              details: `sku=${refreshed.sku || '-'} | costo=${refreshed.cost.toFixed(2)} | precio=${refreshed.price.toFixed(2)}`,
+            }),
+          )
         }
 
         const balanceId = buildBalanceId(targetLocationId, targetProduct.id)
@@ -274,6 +304,21 @@ export const importProductsFromCsv = async (
           updatedAt: now,
         })
         await db.syncQueue.put(buildSyncQueueItem('stockMovements', movementId, now))
+
+        await queueActivityEvent(
+          buildActivityEvent({
+            action: 'STOCK_ADJUSTED',
+            entityType: 'ADJUSTMENT',
+            entityId: movementId,
+            productId: targetProduct.id,
+            locationId: targetLocationId,
+            qty: row.stock - (existingBalance?.stock ?? 0),
+            performedBy: input.performedBy,
+            createdAt: now,
+            summary: `Ajuste por importacion CSV: ${targetProduct.name}`,
+            details: `antes=${existingBalance?.stock ?? 0} | despues=${row.stock}`,
+          }),
+        )
       }
     },
   )

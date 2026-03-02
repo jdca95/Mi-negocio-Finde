@@ -40,6 +40,9 @@ const ImportModule = lazy(async () => ({
 const BackupModule = lazy(async () => ({
   default: (await import('./components/BackupModule')).BackupModule,
 }))
+const AuditModule = lazy(async () => ({
+  default: (await import('./components/AuditModule')).AuditModule,
+}))
 
 type TabKey =
   | 'inventory'
@@ -50,6 +53,7 @@ type TabKey =
   | 'transfers'
   | 'import'
   | 'backup'
+  | 'audit'
   | 'pwa'
 
 interface TabItem {
@@ -67,6 +71,7 @@ const TABS: TabItem[] = [
   { id: 'transfers', label: 'Transferencias', roles: ['ADMIN', 'CASHIER'] },
   { id: 'import', label: 'Importar CSV', roles: ['ADMIN'] },
   { id: 'backup', label: 'Respaldo', roles: ['ADMIN', 'CASHIER'] },
+  { id: 'audit', label: 'Actividad', roles: ['ADMIN', 'CASHIER'] },
   { id: 'pwa', label: 'Instalar iPhone', roles: ['ADMIN', 'CASHIER'] },
 ]
 
@@ -463,6 +468,12 @@ function App() {
               onNotify={notify}
               onError={notifyError}
             />
+          </Suspense>
+        ) : null}
+
+        {activeTab === 'audit' ? (
+          <Suspense fallback={<p>Cargando modulo...</p>}>
+            <AuditModule activeLocationId={activeLocationId} />
           </Suspense>
         ) : null}
 

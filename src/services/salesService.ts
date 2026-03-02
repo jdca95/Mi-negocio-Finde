@@ -1,6 +1,7 @@
 import { db, buildBalanceId, buildEntityId } from '../db'
 import { nowIso } from '../utils/date'
 import { buildFolio, getRuntimeMeta } from '../utils/runtime'
+import { buildActivityEvent, queueActivityEvent } from './activityService'
 import { buildSyncQueueItem } from './syncQueueService'
 import type {
   PaymentMethod,
@@ -79,6 +80,7 @@ export const createSale = async (input: CreateSaleInput): Promise<Sale> => {
       db.sales,
       db.saleItems,
       db.stockMovements,
+      db.activityEvents,
       db.syncQueue,
     ],
     async () => {
@@ -161,6 +163,21 @@ export const createSale = async (input: CreateSaleInput): Promise<Sale> => {
         })
         await db.syncQueue.put(buildSyncQueueItem('stockMovements', movementId, now))
       }
+
+      const itemCount = normalizedItems.reduce((sum, item) => sum + item.qty, 0)
+      await queueActivityEvent(
+        buildActivityEvent({
+          action: 'SALE_CREATED',
+          entityType: 'SALE',
+          entityId: sale.id,
+          locationId: input.locationId,
+          qty: itemCount,
+          performedBy: input.performedBy,
+          createdAt: now,
+          summary: `Venta registrada: ${sale.folio ?? sale.id}`,
+          details: `items=${itemCount} | total=${sale.total.toFixed(2)} | metodo=${sale.paymentMethod}`,
+        }),
+      )
     },
   )
 
@@ -184,6 +201,7 @@ export const cancelSale = async (input: CancelSaleInput): Promise<void> => {
       db.saleCancellations,
       db.inventoryBalances,
       db.stockMovements,
+      db.activityEvents,
       db.syncQueue,
     ],
     async () => {
@@ -196,6 +214,7 @@ export const cancelSale = async (input: CancelSaleInput): Promise<void> => {
       }
 
       const items = await db.saleItems.where('saleId').equals(sale.id).toArray()
+      const itemCount = items.reduce((sum, item) => sum + item.qty, 0)
       for (const item of items) {
         const balanceId = buildBalanceId(sale.locationId, item.productId)
         const balance = await db.inventoryBalances.get(balanceId)
@@ -231,6 +250,20 @@ export const cancelSale = async (input: CancelSaleInput): Promise<void> => {
         })
         await db.syncQueue.put(buildSyncQueueItem('stockMovements', movementId, now))
       }
+
+      await queueActivityEvent(
+        buildActivityEvent({
+          action: 'SALE_CANCELED',
+          entityType: 'SALE',
+          entityId: sale.id,
+          locationId: sale.locationId,
+          qty: itemCount,
+          performedBy: input.performedBy,
+          createdAt: now,
+          summary: `Venta cancelada: ${sale.folio ?? sale.id}`,
+          details: `items=${itemCount} | motivo=${reason}`,
+        }),
+      )
 
       await db.sales.put({
         ...sale,

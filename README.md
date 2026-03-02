@@ -34,6 +34,10 @@ PWA offline-first para inventario y ventas de fin de semana con 3 sucursales y a
 - Ajustes de inventario:
   - Entrada / Salida / Ajuste con motivo
   - Historial de movimientos
+- Actividad y auditoria:
+  - Bitacora de eventos (productos, ventas, cancelaciones, transferencias, ajustes)
+  - Filtros por usuario, sucursal, producto y rango de fechas
+  - Historial detallado por producto con eventos y movimientos de stock
 - Transferencias:
   - Reabasto formal Casa -> Sucursal (o entre ubicaciones)
   - Validacion de stock en origen
