@@ -9,6 +9,7 @@ import {
 } from './constants'
 import type {
   ActivityEvent,
+  CashEntry,
   InventoryBalance,
   Location,
   Product,
@@ -38,6 +39,7 @@ class MiNegocioFindeDB extends Dexie {
   saleCancellations!: EntityTable<SaleCancellation, 'id'>
   transfers!: EntityTable<Transfer, 'id'>
   transferItems!: EntityTable<TransferItem, 'id'>
+  cashEntries!: EntityTable<CashEntry, 'id'>
   stockMovements!: EntityTable<StockMovement, 'id'>
   activityEvents!: EntityTable<ActivityEvent, 'id'>
   users!: EntityTable<User, 'id'>
@@ -74,6 +76,27 @@ class MiNegocioFindeDB extends Dexie {
       saleCancellations: 'id, saleId, createdAt, updatedAt',
       transfers: 'id, fromLocationId, toLocationId, createdAt, updatedAt',
       transferItems: 'id, transferId, productId, createdAt, updatedAt',
+      stockMovements:
+        'id, productId, locationId, type, createdAt, updatedAt, [locationId+createdAt], [productId+createdAt]',
+      activityEvents:
+        'id, action, entityType, entityId, productId, locationId, performedBy, createdAt, updatedAt, [productId+createdAt], [locationId+createdAt], [performedBy+createdAt]',
+      users: 'id, username, role, active, updatedAt',
+      settings: 'key',
+      syncQueue: 'id, entityType, status, attempts, updatedAt, createdAt',
+    })
+    this.version(3).stores({
+      locations: 'id, code, name, type, active, updatedAt',
+      products: 'id, name, sku, active, updatedAt',
+      inventoryBalances:
+        'id, locationId, productId, stock, updatedAt, [locationId+productId], [locationId+stock]',
+      sales:
+        'id, locationId, paymentMethod, status, createdAt, updatedAt, [locationId+createdAt]',
+      saleItems: 'id, saleId, productId, createdAt, updatedAt',
+      saleCancellations: 'id, saleId, createdAt, updatedAt',
+      transfers: 'id, fromLocationId, toLocationId, createdAt, updatedAt',
+      transferItems: 'id, transferId, productId, createdAt, updatedAt',
+      cashEntries:
+        'id, locationId, dateKey, type, createdAt, updatedAt, [locationId+dateKey], [locationId+createdAt]',
       stockMovements:
         'id, productId, locationId, type, createdAt, updatedAt, [locationId+createdAt], [productId+createdAt]',
       activityEvents:

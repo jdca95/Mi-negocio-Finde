@@ -412,6 +412,7 @@ function App() {
           <Suspense fallback={<p>Cargando modulo...</p>}>
             <DailyCutModule
               locationId={activeLocationId}
+              performedBy={currentUser.id}
               onNotify={notify}
               onError={notifyError}
             />

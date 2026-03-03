@@ -1,4 +1,4 @@
-import { PAYMENT_METHOD_LABELS } from '../constants'
+import { CASH_ENTRY_TYPE_LABELS, PAYMENT_METHOD_LABELS } from '../constants'
 import { getDailyCut } from './reportService'
 
 const sanitizeForFilename = (value: string): string =>
@@ -20,6 +20,10 @@ export const exportDailyExcel = async (
     ['Efectivo', summary.byPayment.CASH],
     ['Transferencia', summary.byPayment.TRANSFER],
     ['Tarjeta', summary.byPayment.CARD],
+    ['Fondo inicial', summary.openingCash],
+    ['Retiros', summary.withdrawalsTotal],
+    ['Gastos', summary.expensesTotal],
+    ['Efectivo esperado', summary.expectedCash],
   ]
   XLSX.utils.book_append_sheet(
     workbook,
@@ -66,6 +70,19 @@ export const exportDailyExcel = async (
     workbook,
     XLSX.utils.json_to_sheet(inventarioRows),
     'Inventario',
+  )
+
+  const cajaRows = summary.cashEntries.map((entry) => ({
+    fecha: entry.createdAt,
+    tipo: CASH_ENTRY_TYPE_LABELS[entry.type],
+    monto: entry.amount,
+    motivo: entry.notes,
+    usuario: entry.performedByName,
+  }))
+  XLSX.utils.book_append_sheet(
+    workbook,
+    XLSX.utils.json_to_sheet(cajaRows),
+    'Caja',
   )
 
   const locationSafe = sanitizeForFilename(summary.locationName)

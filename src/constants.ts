@@ -2,6 +2,7 @@ import type {
   AdjustmentMode,
   AdjustmentReason,
   ActivityAction,
+  CashEntryType,
   Location,
   MovementType,
   PaymentMethod,
@@ -19,7 +20,7 @@ export const STORAGE_KEYS = {
   runtimeSessionId: 'mnf.runtimeSessionId',
 } as const
 
-export const BACKUP_SCHEMA_VERSION = 2
+export const BACKUP_SCHEMA_VERSION = 3
 
 export const DEFAULT_LOCATIONS: Array<Omit<Location, 'createdAt' | 'updatedAt'>> = [
   {
@@ -102,6 +103,12 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   CARD: 'Tarjeta',
 }
 
+export const CASH_ENTRY_TYPE_LABELS: Record<CashEntryType, string> = {
+  OPENING: 'Fondo inicial',
+  WITHDRAWAL: 'Retiro',
+  EXPENSE: 'Gasto',
+}
+
 export const ROLE_LABELS: Record<Role, string> = {
   ADMIN: 'Admin',
   CASHIER: 'Cajero',
@@ -146,4 +153,6 @@ export const ACTIVITY_ACTION_LABELS: Record<ActivityAction, string> = {
   SALE_CANCELED: 'Venta cancelada',
   TRANSFER_CREATED: 'Transferencia registrada',
   STOCK_ADJUSTED: 'Ajuste de inventario',
+  CASH_OPENING_SET: 'Fondo inicial actualizado',
+  CASH_ENTRY_ADDED: 'Movimiento de caja registrado',
 }

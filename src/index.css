@@ -580,6 +580,51 @@ thead {
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
+.daily-cut-cash-grid {
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.daily-cut-section {
+  align-content: start;
+}
+
+.section-title-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.section-title-row h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.section-title-row span {
+  color: #3f5d4b;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.daily-cut-hint {
+  margin: 0;
+  color: #51695a;
+  font-size: 0.9rem;
+}
+
+.daily-cut-summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  color: #345341;
+  font-size: 0.95rem;
+}
+
 .charts-grid {
   display: grid;
   gap: 0.8rem;

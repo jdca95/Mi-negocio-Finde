@@ -57,6 +57,9 @@ const parseBackup = (rawText: string): BackupPayload => {
   if (!Array.isArray(typedPayload.data.activityEvents)) {
     ;(typedPayload.data as BackupPayload['data']).activityEvents = []
   }
+  if (!Array.isArray(typedPayload.data.cashEntries)) {
+    ;(typedPayload.data as BackupPayload['data']).cashEntries = []
+  }
 
   return typedPayload as BackupPayload
 }
@@ -71,6 +74,7 @@ export const exportFullBackup = async (): Promise<void> => {
     saleCancellations,
     transfers,
     transferItems,
+    cashEntries,
     stockMovements,
     activityEvents,
     users,
@@ -85,6 +89,7 @@ export const exportFullBackup = async (): Promise<void> => {
     db.saleCancellations.toArray(),
     db.transfers.toArray(),
     db.transferItems.toArray(),
+    db.cashEntries.toArray(),
     db.stockMovements.toArray(),
     db.activityEvents.toArray(),
     db.users.toArray(),
@@ -108,6 +113,7 @@ export const exportFullBackup = async (): Promise<void> => {
       saleCancellations,
       transfers,
       transferItems,
+      cashEntries,
       stockMovements,
       activityEvents,
       users,
@@ -136,6 +142,7 @@ export const importFullBackup = async (rawText: string): Promise<void> => {
       db.saleCancellations,
       db.transfers,
       db.transferItems,
+      db.cashEntries,
       db.stockMovements,
       db.activityEvents,
       db.users,
@@ -151,6 +158,7 @@ export const importFullBackup = async (rawText: string): Promise<void> => {
         db.saleCancellations.clear(),
         db.saleItems.clear(),
         db.sales.clear(),
+        db.cashEntries.clear(),
         db.inventoryBalances.clear(),
         db.products.clear(),
         db.activityEvents.clear(),
@@ -168,6 +176,7 @@ export const importFullBackup = async (rawText: string): Promise<void> => {
         db.saleCancellations.bulkPut(payload.data.saleCancellations),
         db.transfers.bulkPut(payload.data.transfers),
         db.transferItems.bulkPut(payload.data.transferItems),
+        db.cashEntries.bulkPut(payload.data.cashEntries),
         db.stockMovements.bulkPut(payload.data.stockMovements),
         db.activityEvents.bulkPut(payload.data.activityEvents),
         db.users.bulkPut(payload.data.users),

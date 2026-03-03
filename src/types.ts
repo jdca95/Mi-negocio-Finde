@@ -6,6 +6,8 @@ export type PaymentMethod = 'CASH' | 'TRANSFER' | 'CARD'
 
 export type SaleStatus = 'COMPLETED' | 'CANCELED'
 
+export type CashEntryType = 'OPENING' | 'WITHDRAWAL' | 'EXPENSE'
+
 export type AdjustmentMode = 'IN' | 'OUT' | 'SET'
 
 export type AdjustmentReason =
@@ -36,6 +38,7 @@ export type SyncEntityType =
   | 'saleCancellations'
   | 'transfers'
   | 'transferItems'
+  | 'cashEntries'
   | 'stockMovements'
   | 'activityEvents'
 
@@ -47,8 +50,15 @@ export type ActivityAction =
   | 'SALE_CANCELED'
   | 'TRANSFER_CREATED'
   | 'STOCK_ADJUSTED'
+  | 'CASH_OPENING_SET'
+  | 'CASH_ENTRY_ADDED'
 
-export type ActivityEntityType = 'PRODUCT' | 'SALE' | 'TRANSFER' | 'ADJUSTMENT'
+export type ActivityEntityType =
+  | 'PRODUCT'
+  | 'SALE'
+  | 'TRANSFER'
+  | 'ADJUSTMENT'
+  | 'CASH'
 
 export interface Location {
   id: string
@@ -137,6 +147,18 @@ export interface TransferItem {
   transferId: string
   productId: string
   qty: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CashEntry {
+  id: string
+  locationId: string
+  dateKey: string
+  type: CashEntryType
+  amount: number
+  notes: string
+  performedBy: string
   createdAt: string
   updatedAt: string
 }
@@ -245,6 +267,16 @@ export interface DailyCutInventoryRow {
   cost: number
 }
 
+export interface DailyCutCashEntryRow {
+  id: string
+  createdAt: string
+  type: CashEntryType
+  amount: number
+  notes: string
+  performedBy: string
+  performedByName: string
+}
+
 export interface DailyCutSummary {
   date: string
   locationId: string
@@ -252,9 +284,14 @@ export interface DailyCutSummary {
   totalSold: number
   estimatedProfit: number
   byPayment: Record<PaymentMethod, number>
+  openingCash: number
+  withdrawalsTotal: number
+  expensesTotal: number
+  expectedCash: number
   sales: DailyCutSaleRow[]
   details: DailyCutDetailRow[]
   inventoryRows: DailyCutInventoryRow[]
+  cashEntries: DailyCutCashEntryRow[]
 }
 
 export type PeriodPreset = 'TODAY' | 'WEEK' | 'MONTH' | 'CUSTOM'
@@ -325,6 +362,7 @@ export interface BackupPayload {
     saleCancellations: SaleCancellation[]
     transfers: Transfer[]
     transferItems: TransferItem[]
+    cashEntries: CashEntry[]
     stockMovements: StockMovement[]
     activityEvents: ActivityEvent[]
     users: User[]

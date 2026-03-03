@@ -29,6 +29,7 @@ const PUSH_ENTITY_TYPES: SyncEntityType[] = [
   'saleCancellations',
   'transfers',
   'transferItems',
+  'cashEntries',
   'stockMovements',
   'activityEvents',
 ]
@@ -155,6 +156,8 @@ const getEntityTable = (entityType: RemoteEntityType): Table<SyncRecord, string>
       return db.transfers as unknown as Table<SyncRecord, string>
     case 'transferItems':
       return db.transferItems as unknown as Table<SyncRecord, string>
+    case 'cashEntries':
+      return db.cashEntries as unknown as Table<SyncRecord, string>
     case 'stockMovements':
       return db.stockMovements as unknown as Table<SyncRecord, string>
     case 'activityEvents':

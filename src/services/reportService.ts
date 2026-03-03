@@ -1,6 +1,8 @@
 import { WAREHOUSE_LOCATION_ID } from '../constants'
 import { db } from '../db'
 import type {
+  CashEntry,
+  DailyCutCashEntryRow,
   DailyCutDetailRow,
   DailyCutInventoryRow,
   DailyCutSaleRow,
@@ -18,19 +20,34 @@ import {
 
 const roundTwo = (value: number): number => Number(value.toFixed(2))
 
+const sortCashEntries = (entries: CashEntry[]): CashEntry[] =>
+  [...entries].sort((left, right) => {
+    if (left.type === 'OPENING' && right.type !== 'OPENING') {
+      return -1
+    }
+    if (left.type !== 'OPENING' && right.type === 'OPENING') {
+      return 1
+    }
+    return right.createdAt.localeCompare(left.createdAt)
+  })
+
 export const getDailyCut = async (
   dateInput: string,
   locationId: string,
 ): Promise<DailyCutSummary> => {
   const { startIso, endIso } = toIsoDayBounds(dateInput)
 
-  const [location, locations, sales] = await Promise.all([
+  const [location, locations, sales, cashEntries] = await Promise.all([
     db.locations.get(locationId),
     db.locations.toArray(),
     db.sales
       .where('locationId')
       .equals(locationId)
       .filter((sale) => sale.createdAt >= startIso && sale.createdAt <= endIso)
+      .toArray(),
+    db.cashEntries
+      .where('[locationId+dateKey]')
+      .equals([locationId, dateInput])
       .toArray(),
   ])
 
@@ -90,6 +107,38 @@ export const getDailyCut = async (
     byPayment[sale.paymentMethod] += sale.total
   }
 
+  const performerIds = Array.from(new Set(cashEntries.map((entry) => entry.performedBy)))
+  const users =
+    performerIds.length === 0
+      ? []
+      : await db.users.where('id').anyOf(performerIds).toArray()
+  const usersMap = new Map(users.map((user) => [user.id, user.name]))
+
+  let openingCash = 0
+  let withdrawalsTotal = 0
+  let expensesTotal = 0
+  for (const entry of cashEntries) {
+    if (entry.type === 'OPENING') {
+      openingCash = entry.amount
+      continue
+    }
+    if (entry.type === 'WITHDRAWAL') {
+      withdrawalsTotal += entry.amount
+      continue
+    }
+    expensesTotal += entry.amount
+  }
+
+  const cashRows: DailyCutCashEntryRow[] = sortCashEntries(cashEntries).map((entry) => ({
+    id: entry.id,
+    createdAt: entry.createdAt,
+    type: entry.type,
+    amount: entry.amount,
+    notes: entry.notes,
+    performedBy: entry.performedBy,
+    performedByName: usersMap.get(entry.performedBy) ?? entry.performedBy,
+  }))
+
   const locationIds = Array.from(new Set([locationId, WAREHOUSE_LOCATION_ID]))
   const balances = await db.inventoryBalances
     .where('locationId')
@@ -134,9 +183,16 @@ export const getDailyCut = async (
       TRANSFER: roundTwo(byPayment.TRANSFER),
       CARD: roundTwo(byPayment.CARD),
     },
+    openingCash: roundTwo(openingCash),
+    withdrawalsTotal: roundTwo(withdrawalsTotal),
+    expensesTotal: roundTwo(expensesTotal),
+    expectedCash: roundTwo(
+      openingCash + byPayment.CASH - withdrawalsTotal - expensesTotal,
+    ),
     sales: salesRows,
     details,
     inventoryRows,
+    cashEntries: cashRows,
   }
 }
 
@@ -232,4 +288,3 @@ export const getPeriodReport = async (
     profitByDay,
   }
 }
-
